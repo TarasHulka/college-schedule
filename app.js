@@ -292,9 +292,17 @@
 
   // ---------- Побудова карток ----------
 
-  function pickTeacherColumnKey(entry) {
-    if (entry.викладач) return 't:' + entry.викладач;
-    if (entry.предмет) return 's:' + entry.предмет;
+  function pickColumnKey(entry) {
+    // У режимі "Викладач" всі записи вже одного викладача — колонку
+    // (той самий "потік" між чисельником і знаменником) визначає група,
+    // а не викладач. У режимі "Студент" — навпаки.
+    if (state.mode === 'teacher') {
+      if (entry.група) return 'g:' + entry.група;
+      if (entry.предмет) return 's:' + entry.предмет;
+    } else {
+      if (entry.викладач) return 't:' + entry.викладач;
+      if (entry.предмет) return 's:' + entry.предмет;
+    }
     return 'p:' + (entry.підгрупа || '');
   }
 
@@ -312,7 +320,7 @@
       const without = entries.filter((e) => !e.підгрупа);
       const buckets = new Map();
       for (const e of withSub) {
-        const key = pickTeacherColumnKey(e);
+        const key = pickColumnKey(e);
         if (!buckets.has(key)) buckets.set(key, []);
         buckets.get(key).push(e);
       }
@@ -384,10 +392,13 @@
     }
     wrap.appendChild(row);
 
-    if (entry.викладач) {
+    // У режимі "Студент" показуємо викладача; у режимі "Викладач" він і так
+    // один і той самий (обраний) — замість цього показуємо групу.
+    const metaText = state.mode === 'teacher' ? entry.група : entry.викладач;
+    if (metaText) {
       const meta = document.createElement('span');
       meta.className = 'meta';
-      meta.textContent = entry.викладач;
+      meta.textContent = metaText;
       wrap.appendChild(meta);
     }
 

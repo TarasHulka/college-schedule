@@ -367,6 +367,34 @@ def parse_pdf(path, warnings_ctx):
     return lessons, departments
 
 
+def teacher_dedupe_key(name):
+    """Ключ для об'єднання варіантів написання того самого викладача
+    (напр. "Гулка Т.Б." і "Гулка Т.Б" — пропущена крапка в кінці)."""
+    return re.sub(r"[.\s]", "", name).casefold()
+
+
+def normalize_teacher_names(lessons):
+    variants = {}  # dedupe_key -> Counter(варіант написання -> кількість)
+    for l in lessons:
+        name = l["викладач"]
+        if not name:
+            continue
+        key = teacher_dedupe_key(name)
+        variants.setdefault(key, {})
+        variants[key][name] = variants[key].get(name, 0) + 1
+
+    canonical = {}
+    for key, counts in variants.items():
+        # найчастіший варіант; за рівності — той, що закінчується крапкою (повніший запис)
+        best = sorted(counts.items(), key=lambda kv: (-kv[1], not kv[0].endswith(".")))[0][0]
+        canonical[key] = best
+
+    for l in lessons:
+        name = l["викладач"]
+        if name:
+            l["викладач"] = canonical[teacher_dedupe_key(name)]
+
+
 def day_sort_key(day):
     try:
         return CANONICAL_DAYS.index(day)
@@ -406,6 +434,7 @@ def main():
             else:
                 all_departments[group] = dept
 
+    normalize_teacher_names(all_lessons)
     all_lessons.sort(key=lambda l: (l["група"], day_sort_key(l["день"]), l["номер_пари"] or 0))
 
     groups_sorted = OrderedDict(sorted(all_departments.items()))
