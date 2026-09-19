@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Розклад занять — Технічний фаховий коледж</title>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark">ТФК</div>
+      <div>
+        <div class="brand-title">Технічний фаховий коледж</div>
+        <div class="brand-subtitle">Розклад занять</div>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <div class="mode-switch" role="tablist" aria-label="Режим перегляду">
+        <button type="button" class="mode-btn" data-mode="student" role="tab" aria-selected="true">Студент</button>
+        <button type="button" class="mode-btn" data-mode="teacher" role="tab" aria-selected="false">Викладач</button>
+      </div>
+
+      <button type="button" class="selector-btn" id="selector-btn" aria-haspopup="dialog" aria-expanded="false">
+        <span id="selector-label">Оберіть групу</span>
+        <span class="chevron">▾</span>
+      </button>
+
+      <div class="week-nav">
+        <button type="button" class="week-arrow" id="week-prev" aria-label="Попередній тиждень">‹</button>
+        <div class="week-info">
+          <div class="week-number" id="week-number">Тиждень —</div>
+          <span class="week-parity" id="week-parity">—</span>
+        </div>
+        <button type="button" class="week-arrow" id="week-next" aria-label="Наступний тиждень">›</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Панель вибору курсу/відділення/групи (Студент) або викладача (Викладач) -->
+<div class="selector-overlay" id="selector-overlay" hidden>
+  <div class="selector-panel" role="dialog" aria-label="Вибір розкладу">
+    <div class="selector-panel-header">
+      <span id="selector-panel-title">Обрати групу</span>
+      <button type="button" class="close-btn" id="selector-close" aria-label="Закрити">✕</button>
+    </div>
+
+    <div class="selector-panel-body" id="student-selectors">
+      <label class="selector-field">
+        <span>Курс</span>
+        <select id="select-course"></select>
+      </label>
+      <label class="selector-field">
+        <span>Відділення</span>
+        <select id="select-department"></select>
+      </label>
+      <label class="selector-field">
+        <span>Група</span>
+        <select id="select-group"></select>
+      </label>
+    </div>
+
+    <div class="selector-panel-body" id="teacher-selectors" hidden>
+      <label class="selector-field">
+        <span>Викладач</span>
+        <select id="select-teacher"></select>
+      </label>
+    </div>
+  </div>
+</div>
+
+<main class="page-main">
+
+  <!-- Мобільні таби днів -->
+  <div class="day-tabs" id="day-tabs" role="tablist" aria-label="День тижня"></div>
+
+  <div class="schedule-empty" id="schedule-empty" hidden>
+    Оберіть групу або викладача, щоб побачити розклад.
+  </div>
+
+  <div class="schedule-grid" id="schedule-grid" hidden></div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-swatch current"></span><span class="meta">Пара, що йде зараз</span></div>
+    <div class="legend-item"><span class="badge-a">А</span><span class="badge-b">Б</span><span class="meta">Поділ на підгрупи (одночасно, різні аудиторії)</span></div>
+    <div class="legend-item"><span class="dot-num"></span><span class="meta">чис.</span><span class="dot-den"></span><span class="meta">знам. — чергування по тижнях, активний тиждень виділено</span></div>
+    <div class="legend-item"><span class="legend-swatch empty"></span><span class="meta">Пара відсутня</span></div>
+  </div>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
