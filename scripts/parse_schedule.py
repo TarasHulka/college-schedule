@@ -4,8 +4,12 @@
 
 Проходить по всіх PDF у вхідній папці (кількість файлів довільна), витягує
 таблиці через pdfplumber, і генерує:
-  - data/lessons.json  — плаский нормалізований список занять
-  - data/groups.json   — відповідність "назва групи" -> "відділення"
+  - data/lessons.json    — плаский нормалізований список занять (лише
+    номер_пари, без конкретного часу — щоб зміна дзвінків не вимагала
+    перегенерації розкладу)
+  - data/groups.json     — відповідність "назва групи" -> "відділення"
+  - data/pair_times.json — розклад дзвінків: номер_пари -> {початок, кінець}
+    (найчастіше значення з PDF для цього номера пари)
 
 Структура таблиці на сторінці (виявлена емпірично, підтверджена на 7 файлах):
   - Рядок 0: назви груп у комірках "Група NN XXX", по одній на кожен "блок".
@@ -189,7 +193,7 @@ def slots_for_block(block):
     return slots
 
 
-def parse_page(page, department_fallback, warnings_ctx):
+def parse_page(page, department_fallback, warnings_ctx, pair_time_stats):
     text = page.extract_text() or ""
     department = find_department(text) or department_fallback
     table = page.extract_table()
@@ -229,6 +233,10 @@ def parse_page(page, department_fallback, warnings_ctx):
             state["unit_rows"] = []
             return
         start_time, end_time = split_time_parts([r[b["time_col"]] for r in rows])
+        if start_time and end_time:
+            times_for_pair = pair_time_stats.setdefault(para_num, {})
+            key = (start_time, end_time)
+            times_for_pair[key] = times_for_pair.get(key, 0) + 1
         slots = slots_for_block(b)
         layers_count = len(rows)
 
@@ -288,8 +296,6 @@ def parse_page(page, department_fallback, warnings_ctx):
                 "група": b["group_name"],
                 "день": state["unit_day"],
                 "номер_пари": para_num,
-                "час_початку": start_time,
-                "час_кінця": end_time,
                 "тиждень": week_for_layer(layer_idx),
                 "підгрупа": subgroup,
                 "предмет": subject,
@@ -343,13 +349,13 @@ def parse_page(page, department_fallback, warnings_ctx):
     return lessons, group_departments
 
 
-def parse_pdf(path, warnings_ctx):
+def parse_pdf(path, warnings_ctx, pair_time_stats):
     lessons = []
     departments = {}
     with pdfplumber.open(path) as pdf:
         for page_idx, page in enumerate(pdf.pages):
             try:
-                page_lessons, page_departments = parse_page(page, None, warnings_ctx)
+                page_lessons, page_departments = parse_page(page, None, warnings_ctx, pair_time_stats)
             except Exception as exc:  # noqa: BLE001
                 warnings_ctx.append(f"{path.name} стор.{page_idx}: помилка парсингу — {exc}")
                 continue
@@ -420,10 +426,11 @@ def main():
     all_lessons = []
     all_departments = {}
     warnings_ctx = []
+    pair_time_stats = {}  # номер_пари -> {(початок, кінець): кількість}
 
     for pdf_path in pdf_files:
         print(f"Обробляю {pdf_path.name}...")
-        lessons, departments = parse_pdf(pdf_path, warnings_ctx)
+        lessons, departments = parse_pdf(pdf_path, warnings_ctx, pair_time_stats)
         all_lessons.extend(lessons)
         for group, dept in departments.items():
             if group in all_departments and all_departments[group] != dept:
@@ -439,16 +446,27 @@ def main():
 
     groups_sorted = OrderedDict(sorted(all_departments.items()))
 
+    # Час пар — окремо від занять (data/pair_times.json), щоб зміну дзвінків
+    # можна було внести в одному місці, не перегенеровуючи розклад. Береться
+    # найчастіше значення з PDF для кожного номера пари.
+    pair_times = OrderedDict()
+    for pair_num in sorted(pair_time_stats):
+        counts = pair_time_stats[pair_num]
+        (start, end), _ = max(counts.items(), key=lambda kv: kv[1])
+        pair_times[str(pair_num)] = {"початок": start, "кінець": end}
+
     lessons_path = output_dir / "lessons.json"
     groups_path = output_dir / "groups.json"
+    pair_times_path = output_dir / "pair_times.json"
     lessons_path.write_text(json.dumps(all_lessons, ensure_ascii=False, indent=2), encoding="utf-8")
     groups_path.write_text(json.dumps(groups_sorted, ensure_ascii=False, indent=2), encoding="utf-8")
+    pair_times_path.write_text(json.dumps(pair_times, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"\nЗанять: {len(all_lessons)}")
     print(f"Груп: {len(groups_sorted)}")
     teachers = sorted({l["викладач"] for l in all_lessons if l["викладач"]})
     print(f"Викладачів: {len(teachers)}")
-    print(f"Записано у {lessons_path} та {groups_path}")
+    print(f"Записано у {lessons_path}, {groups_path} та {pair_times_path}")
 
     if warnings_ctx:
         print(f"\n[!] Попередження ({len(warnings_ctx)}):", file=sys.stderr)

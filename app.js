@@ -12,6 +12,7 @@
 
   let lessons = [];
   let groups = {}; // назва групи -> відділення
+  let pairTimes = {}; // номер_пари -> {початок, кінець}
 
   const state = {
     mode: 'student', // 'student' | 'teacher'
@@ -65,12 +66,14 @@
   // ---------- Завантаження даних ----------
 
   async function loadData() {
-    const [lessonsRes, groupsRes] = await Promise.all([
+    const [lessonsRes, groupsRes, pairTimesRes] = await Promise.all([
       fetch('data/lessons.json'),
       fetch('data/groups.json'),
+      fetch('data/pair_times.json'),
     ]);
     lessons = await lessonsRes.json();
     groups = await groupsRes.json();
+    pairTimes = await pairTimesRes.json();
   }
 
   function courseOf(groupName) {
@@ -98,28 +101,20 @@
     return [...new Set(lessons.filter((l) => l.викладач).map((l) => l.викладач))].sort();
   }
 
-  // Найпоширеніший час для кожної пари — для підпису рядка, коли клітинка порожня.
-  function buildPairTimeLabels() {
-    const counts = new Map(); // пара -> Map(time -> count)
-    const pairs = new Set();
-    for (const l of lessons) {
-      pairs.add(l.номер_пари);
-      if (!l.час_початку) continue;
-      const key = `${l.час_початку}–${l.час_кінця}`;
-      if (!counts.has(l.номер_пари)) counts.set(l.номер_пари, new Map());
-      const m = counts.get(l.номер_пари);
-      m.set(key, (m.get(key) || 0) + 1);
-    }
+  // Розклад дзвінків береться з data/pair_times.json (окремо від занять),
+  // щоб зміну часу пар можна було внести в одному місці.
+  function buildPairInfo() {
+    const pairNumbers = [...new Set(lessons.map((l) => l.номер_пари))].sort((a, b) => a - b);
     const labels = new Map();
-    for (const [pair, m] of counts) {
-      let best = null;
-      let bestCount = -1;
-      for (const [time, count] of m) {
-        if (count > bestCount) { best = time; bestCount = count; }
-      }
-      labels.set(pair, best);
+    for (const pair of pairNumbers) {
+      const t = pairTimes[String(pair)];
+      labels.set(pair, t ? `${t.початок}–${t.кінець}` : null);
     }
-    return { pairNumbers: [...pairs].sort((a, b) => a - b), labels };
+    return { pairNumbers, labels };
+  }
+
+  function timeRangeFor(pairNumber) {
+    return pairTimes[String(pairNumber)] || null;
   }
 
   // ---------- Стан / персистентність ----------
@@ -349,9 +344,10 @@
     if (!entryIsActive(entry, viewedParity)) return false;
     const now = new Date();
     if (DAYS[now.getDay() - 1] !== dayName) return false;
-    if (!entry.час_початку || !entry.час_кінця) return false;
-    const [sh, sm] = entry.час_початку.split(':').map(Number);
-    const [eh, em] = entry.час_кінця.split(':').map(Number);
+    const time = timeRangeFor(entry.номер_пари);
+    if (!time) return false;
+    const [sh, sm] = time.початок.split(':').map(Number);
+    const [eh, em] = time.кінець.split(':').map(Number);
     const start = sh * 60 + sm;
     const end = eh * 60 + em;
     const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -538,7 +534,7 @@
     await loadData();
     taxonomy = buildTaxonomy();
     teachers = allTeachers();
-    pairInfo = buildPairTimeLabels();
+    pairInfo = buildPairInfo();
 
     const saved = loadSelection();
     if (saved) Object.assign(state, saved);
